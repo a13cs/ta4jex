@@ -33,10 +33,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.Charset;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
+import java.time.*;
 import java.util.Collections;
 import java.util.List;
 import java.util.logging.Level;
@@ -54,12 +51,16 @@ public class CsvTradesLoader {
 
         // Reading all lines of the CSV file
         InputStream stream = CsvTradesLoader.class.getClassLoader()
-                .getResourceAsStream("bitstamp_trades_from_20131125_usd.csv");
+//                .getResourceAsStream("bitstamp_trades_from_20131125_usd.csv");
+//                .getResourceAsStream("Binance_BTCUSDT_minute(2).csv");
+//                .getResourceAsStream("Bitfinex_ETHBTC_minute.csv");
+                .getResourceAsStream("Binance_BTCUSDT_minute.csv");
         CSVReader csvReader = null;
         List<String[]> lines = null;
         try {
             csvReader = new CSVReader(new InputStreamReader(stream, Charset.forName("UTF-8")), ',');
             lines = csvReader.readAll();
+            lines.remove(0); // Removing header line
             lines.remove(0); // Removing header line
         } catch (IOException ioe) {
             Logger.getLogger(CsvTradesLoader.class.getName()).log(Level.SEVERE, "Unable to load trades from CSV", ioe);
@@ -78,10 +79,17 @@ public class CsvTradesLoader {
 
             // Getting the first and last trades timestamps
             ZonedDateTime beginTime = ZonedDateTime
-                    .ofInstant(Instant.ofEpochMilli(Long.parseLong(lines.get(0)[0]) * 1000), ZoneId.systemDefault());
-            ZonedDateTime endTime = ZonedDateTime.ofInstant(
-                    Instant.ofEpochMilli(Long.parseLong(lines.get(lines.size() - 1)[0]) * 1000),
-                    ZoneId.systemDefault());
+                    .ofInstant(Instant.ofEpochMilli(Long.parseLong(lines.get(0)[0]) ), ZoneId.systemDefault());
+
+            long endTimeMillis = 0;
+            int i = 1;
+            do{
+                try {
+                    endTimeMillis = Long.parseLong(lines.get(lines.size() - i++)[0]);
+                } catch(Exception ignored) { }
+            } while (endTimeMillis == 0L);
+
+            ZonedDateTime endTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(endTimeMillis), ZoneId.systemDefault());
             if (beginTime.isAfter(endTime)) {
                 Instant beginInstant = beginTime.toInstant();
                 Instant endInstant = endTime.toInstant();
@@ -93,7 +101,7 @@ public class CsvTradesLoader {
                 Collections.reverse(lines);
             }
             // build the list of populated bars
-            buildSeries(series, beginTime, endTime, 300, lines);
+            buildSeries(series, beginTime, endTime, 3_60, lines);
         }
 
         return series;
@@ -110,7 +118,7 @@ public class CsvTradesLoader {
     @SuppressWarnings("deprecation")
     private static void buildSeries(BarSeries series, ZonedDateTime beginTime, ZonedDateTime endTime, int duration,
             List<String[]> lines) {
-
+    try {
         Duration barDuration = Duration.ofSeconds(duration);
         ZonedDateTime barEndTime = beginTime;
         // line number of trade data
@@ -123,12 +131,16 @@ public class CsvTradesLoader {
                 // get a trade
                 String[] tradeLine = lines.get(i);
                 ZonedDateTime tradeTimeStamp = ZonedDateTime
-                        .ofInstant(Instant.ofEpochMilli(Long.parseLong(tradeLine[0]) * 1000), ZoneId.systemDefault());
+                        .ofInstant(Instant.ofEpochMilli(Long.parseLong(tradeLine[0])), ZoneId.systemDefault());
+//                if (tradeTimeStamp.getMonth().compareTo(Month.MARCH) > 0) {
+//                    i++; continue;
+//                }
+
                 // if the trade happened during the bar
                 if (bar.inPeriod(tradeTimeStamp)) {
                     // add the trade to the bar
-                    double tradePrice = Double.parseDouble(tradeLine[1]);
-                    double tradeVolume = Double.parseDouble(tradeLine[2]);
+                    double tradePrice = Double.parseDouble(tradeLine[6]);
+                    double tradeVolume = Double.parseDouble(tradeLine[7]);
                     bar.addTrade(tradeVolume, tradePrice, series.function());
                 } else {
                     // the trade happened after the end of the bar
@@ -144,6 +156,9 @@ public class CsvTradesLoader {
                 series.addBar(bar);
             }
         } while (barEndTime.isBefore(endTime));
+    }catch (Exception e) {
+        System.err.println(e.getCause());
+    }
     }
 
     public static void main(String[] args) {

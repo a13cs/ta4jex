@@ -44,6 +44,7 @@ import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
 import org.ta4j.core.num.Num;
 import ta4jexamples.loaders.CsvTradesLoader;
 import ta4jexamples.strategies.MovingMomentumStrategy;
+import ta4jexamples.strategies.RSI2Strategy;
 
 import java.awt.*;
 import java.text.SimpleDateFormat;
@@ -69,8 +70,12 @@ public class BuyAndSellSignalsToChart {
         org.jfree.data.time.TimeSeries chartTimeSeries = new org.jfree.data.time.TimeSeries(name);
         for (int i = 0; i < barSeries.getBarCount(); i++) {
             Bar bar = barSeries.getBar(i);
-            chartTimeSeries.add(new Minute(Date.from(bar.getEndTime().toInstant())),
-                    indicator.getValue(i).doubleValue());
+            try {
+                chartTimeSeries.add(new Minute(Date.from(bar.getEndTime().toInstant())),
+                        indicator.getValue(i).doubleValue());
+            } catch (Exception e) {
+
+            }
         }
         return chartTimeSeries;
     }
@@ -89,22 +94,26 @@ public class BuyAndSellSignalsToChart {
         List<Trade> trades = seriesManager.run(strategy).getTrades();
         // Adding markers to plot
         for (Trade trade : trades) {
-            // Buy signal
-            double buySignalBarTime = new Minute(
-                    Date.from(series.getBar(trade.getEntry().getIndex()).getEndTime().toInstant()))
-                            .getFirstMillisecond();
-            Marker buyMarker = new ValueMarker(buySignalBarTime);
-            buyMarker.setPaint(Color.GREEN);
-            buyMarker.setLabel("B");
-            plot.addDomainMarker(buyMarker);
-            // Sell signal
-            double sellSignalBarTime = new Minute(
-                    Date.from(series.getBar(trade.getExit().getIndex()).getEndTime().toInstant()))
-                            .getFirstMillisecond();
-            Marker sellMarker = new ValueMarker(sellSignalBarTime);
-            sellMarker.setPaint(Color.RED);
-            sellMarker.setLabel("S");
-            plot.addDomainMarker(sellMarker);
+            try {
+                // Buy signal
+                double buySignalBarTime = new Minute(
+                        Date.from(series.getBar(trade.getEntry().getIndex()).getEndTime().toInstant()))
+                        .getFirstMillisecond();
+                Marker buyMarker = new ValueMarker(buySignalBarTime);
+                buyMarker.setPaint(Color.GREEN);
+                buyMarker.setLabel("B");
+                plot.addDomainMarker(buyMarker);
+                // Sell signal
+                double sellSignalBarTime = new Minute(
+                        Date.from(series.getBar(trade.getExit().getIndex()).getEndTime().toInstant()))
+                        .getFirstMillisecond();
+                Marker sellMarker = new ValueMarker(sellSignalBarTime);
+                sellMarker.setPaint(Color.RED);
+                sellMarker.setLabel("S");
+                plot.addDomainMarker(sellMarker);
+            } catch (Exception e) {
+
+            }
         }
     }
 
@@ -132,20 +141,22 @@ public class BuyAndSellSignalsToChart {
         // Getting the bar series
         BarSeries series = CsvTradesLoader.loadBitstampSeries();
         // Building the trading strategy
-        Strategy strategy = MovingMomentumStrategy.buildStrategy(series);
+//        Strategy strategy = MovingMomentumStrategy.buildStrategy(series);
+        Strategy strategy = RSI2Strategy.buildStrategy(series);
 
         /*
          * Building chart datasets
          */
         TimeSeriesCollection dataset = new TimeSeriesCollection();
-        dataset.addSeries(buildChartTimeSeries(series, new ClosePriceIndicator(series), "Bitstamp Bitcoin (BTC)"));
+        dataset.addSeries(buildChartTimeSeries(series, new ClosePriceIndicator(series), "Bitstampx Bitcoin (BTC)"));
 
         /*
          * Creating the chart
          */
-        JFreeChart chart = ChartFactory.createTimeSeriesChart("Bitstamp BTC", // title
+        BarSeriesManager seriesManager = new BarSeriesManager(series);
+        JFreeChart chart = ChartFactory.createTimeSeriesChart("Bitstamp BTC " + "trades count: " + seriesManager.run(strategy).getTradeCount(), // title
                 "Date", // x-axis label
-                "Price", // y-axis label
+                "Pricex", // y-axis label
                 dataset, // data
                 true, // create legend?
                 true, // generate tooltips?

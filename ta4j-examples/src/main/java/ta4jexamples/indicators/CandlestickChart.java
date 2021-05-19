@@ -26,24 +26,33 @@ package ta4jexamples.indicators;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartPanel;
 import org.jfree.chart.JFreeChart;
+import org.jfree.chart.axis.DateAxis;
 import org.jfree.chart.axis.NumberAxis;
 import org.jfree.chart.plot.DatasetRenderingOrder;
+import org.jfree.chart.plot.Marker;
+import org.jfree.chart.plot.ValueMarker;
 import org.jfree.chart.plot.XYPlot;
 import org.jfree.chart.renderer.xy.CandlestickRenderer;
 import org.jfree.chart.renderer.xy.XYLineAndShapeRenderer;
+import org.jfree.data.time.Minute;
 import org.jfree.data.time.Second;
 import org.jfree.data.time.TimeSeriesCollection;
 import org.jfree.data.xy.DefaultHighLowDataset;
 import org.jfree.data.xy.OHLCDataset;
 import org.jfree.ui.ApplicationFrame;
 import org.jfree.ui.RefineryUtilities;
-import org.ta4j.core.Bar;
-import org.ta4j.core.BarSeries;
+import org.ta4j.core.*;
+import org.ta4j.core.analysis.criteria.TotalProfitCriterion;
 import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
+import org.ta4j.core.num.Num;
 import ta4jexamples.loaders.CsvTradesLoader;
+import ta4jexamples.strategies.MovingMomentumStrategy;
+import ta4jexamples.strategies.RSI2Strategy;
 
 import java.awt.*;
+import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.List;
 
 /**
  * This class builds a traditional candlestick chart.
@@ -91,8 +100,12 @@ public class CandlestickChart {
         org.jfree.data.time.TimeSeries chartTimeSeries = new org.jfree.data.time.TimeSeries("Btc price");
         for (int i = 0; i < series.getBarCount(); i++) {
             Bar bar = series.getBar(i);
-            chartTimeSeries.add(new Second(new Date(bar.getEndTime().toEpochSecond() * 1000)),
-                    indicator.getValue(i).doubleValue());
+//            try {
+                chartTimeSeries.addOrUpdate(new Second(new Date(bar.getEndTime().toEpochSecond() * 1000)),
+                        indicator.getValue(i).doubleValue());
+//            } catch (Exception e) {
+//
+//            }
         }
         dataset.addSeries(chartTimeSeries);
         return dataset;
@@ -103,12 +116,43 @@ public class CandlestickChart {
      *
      * @param chart the chart to be displayed
      */
-    private static void displayChart(JFreeChart chart) {
+    private static void displayChart(BarSeries series, Strategy strategy, JFreeChart chart) {
+        XYPlot plot = (XYPlot) chart.getPlot();
+        DateAxis axis = (DateAxis) plot.getDomainAxis();
+        axis.setDateFormatOverride(new SimpleDateFormat("MM-dd HH:mm"));
+
         // Chart panel
         ChartPanel panel = new ChartPanel(chart);
+
+        BarSeriesManager seriesManager = new BarSeriesManager(series);
+        List<Trade> trades = seriesManager.run(strategy).getTrades();
+        // Adding markers to plot
+        for (Trade trade : trades) {
+            try {
+                // Buy signal
+                double buySignalBarTime = new Minute(
+                        Date.from(series.getBar(trade.getEntry().getIndex()).getEndTime().toInstant()))
+                        .getFirstMillisecond();
+                Marker buyMarker = new ValueMarker(buySignalBarTime);
+                buyMarker.setPaint(Color.GREEN);
+                buyMarker.setLabel("B");
+                plot.addDomainMarker(buyMarker);
+                // Sell signal
+                double sellSignalBarTime = new Minute(
+                        Date.from(series.getBar(trade.getExit().getIndex()).getEndTime().toInstant()))
+                        .getFirstMillisecond();
+                Marker sellMarker = new ValueMarker(sellSignalBarTime);
+                sellMarker.setPaint(Color.RED);
+                sellMarker.setLabel("S");
+                plot.addDomainMarker(sellMarker);
+            } catch (Exception e) {
+
+            }
+        }
+
         panel.setFillZoomRectangle(true);
         panel.setMouseWheelEnabled(true);
-        panel.setPreferredSize(new java.awt.Dimension(740, 300));
+        panel.setPreferredSize(new java.awt.Dimension(800, 500));
         // Application frame
         ApplicationFrame frame = new ApplicationFrame("Ta4j example - Candlestick chart");
         frame.setContentPane(panel);
@@ -133,10 +177,14 @@ public class CandlestickChart {
          */
         TimeSeriesCollection xyDataset = createAdditionalDataset(series);
 
+        BarSeriesManager seriesManager = new BarSeriesManager(series);
+        TradingRecord run = seriesManager.run(MovingMomentumStrategy.buildStrategy(series));
+        int tradeCount = run.getTradeCount();
+        Num calculate = new TotalProfitCriterion().calculate(series, run);
         /*
          * Creating the chart
          */
-        JFreeChart chart = ChartFactory.createCandlestickChart("Bitstamp BTC price", "Time", "USD", ohlcDataset, true);
+        JFreeChart chart = ChartFactory.createCandlestickChart("Bitstamp BTC price, trades count: " + tradeCount + " p = " + calculate, "Time", "USD", ohlcDataset, true);
         // Candlestick rendering
         CandlestickRenderer renderer = new CandlestickRenderer();
         renderer.setAutoWidthMethod(CandlestickRenderer.WIDTHMETHOD_SMALLEST);
@@ -159,6 +207,7 @@ public class CandlestickChart {
         /*
          * Displaying the chart
          */
-        displayChart(chart);
+//        displayChart(series, RSI2Strategy.buildStrategy(series), chart);
+        displayChart(series, MovingMomentumStrategy.buildStrategy(series), chart);
     }
 }

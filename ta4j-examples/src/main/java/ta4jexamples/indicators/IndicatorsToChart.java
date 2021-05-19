@@ -43,6 +43,7 @@ import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
 import org.ta4j.core.indicators.statistics.StandardDeviationIndicator;
 import org.ta4j.core.num.Num;
 import ta4jexamples.loaders.CsvBarsLoader;
+import ta4jexamples.loaders.CsvTradesLoader;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -65,7 +66,7 @@ public class IndicatorsToChart {
         org.jfree.data.time.TimeSeries chartTimeSeries = new org.jfree.data.time.TimeSeries(name);
         for (int i = 0; i < barSeries.getBarCount(); i++) {
             Bar bar = barSeries.getBar(i);
-            chartTimeSeries.add(new Day(Date.from(bar.getEndTime().toInstant())), indicator.getValue(i).doubleValue());
+            chartTimeSeries.addOrUpdate(new Day(Date.from(bar.getEndTime().toInstant())), indicator.getValue(i).doubleValue());
         }
         return chartTimeSeries;
     }
@@ -94,7 +95,9 @@ public class IndicatorsToChart {
         /*
          * Getting bar series
          */
-        BarSeries series = CsvBarsLoader.loadAppleIncSeries();
+//        BarSeries series = CsvBarsLoader.loadAppleIncSeries();
+        BarSeries series = CsvTradesLoader.loadBitstampSeries();
+
 
         /*
          * Creating indicators
